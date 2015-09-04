@@ -758,8 +758,7 @@ public:
     if (Triple.getArch() == llvm::Triple::arm) {
       // Handled in ARM's setABI().
     } else if (Triple.getArch() == llvm::Triple::x86) {
-      // @LOCALMOD MERGETODO: upstream this if it actually works.
-      this->DescriptionString = "e-m:e-p:32:32-i64:64-n8:16:32-S128";
+      // Handled in X86_32's setDescriptionString.
     } else if (Triple.getArch() == llvm::Triple::x86_64) {
       this->DescriptionString = "e-m:e-p:32:32-i64:64-n8:16:32:64-S128";
     } else if (Triple.getArch() == llvm::Triple::mipsel) {
@@ -3460,13 +3459,23 @@ X86TargetInfo::convertConstraint(const char *&Constraint) const {
 
 // X86-32 generic target
 class X86_32TargetInfo : public X86TargetInfo {
+  // @LOCALMOD-START
+  virtual void setDescriptionString() {
+    if (getTriple().isOSNaCl())
+      DescriptionString = "e-m:e-p:32:32-i64:64-n8:16:32-S128";
+    else if (HasAlignedDouble)
+      DescriptionString = "e-m:e-p:32:32-i64:64-f80:32-n8:16:32-S128";
+    else
+      DescriptionString = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128";
+  }
+  bool HasAlignedDouble;
+  // @LOCALMOD-END
 public:
   X86_32TargetInfo(const llvm::Triple &Triple) : X86TargetInfo(Triple) {
     DoubleAlign = LongLongAlign = 32;
     LongDoubleWidth = 96;
     LongDoubleAlign = 32;
     SuitableAlign = 128;
-    DescriptionString = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128";
     SizeType = UnsignedInt;
     PtrDiffType = SignedInt;
     IntPtrType = SignedInt;
@@ -3511,6 +3520,21 @@ public:
 
     return X86TargetInfo::validateOperandSize(Constraint, Size);
   }
+  // @LOCALMOD-START
+  bool handleTargetFeatures(std::vector<std::string> &Features,
+                            DiagnosticsEngine &Diags) override {
+    HasAlignedDouble = false;
+    auto it = std::find(Features.begin(), Features.end(), "+align-double");
+    if (it != Features.end()) {
+      HasAlignedDouble = true;
+      Features.erase(it);
+    }
+
+    setDescriptionString();
+
+    return X86TargetInfo::handleTargetFeatures(Features, Diags);
+  }
+  // @LOCALMOD-END
 };
 
 class NetBSDI386TargetInfo : public NetBSDTargetInfo<X86_32TargetInfo> {
@@ -3550,6 +3574,11 @@ public:
 };
 
 class DarwinI386TargetInfo : public DarwinTargetInfo<X86_32TargetInfo> {
+  // @LOCALMOD-START
+  void setDescriptionString() override {
+    DescriptionString = "e-m:o-p:32:32-f64:32:64-f80:128-n8:16:32-S128";
+  }
+  // @LOCALMOD-END
 public:
   DarwinI386TargetInfo(const llvm::Triple &Triple)
       : DarwinTargetInfo<X86_32TargetInfo>(Triple) {
@@ -3559,7 +3588,6 @@ public:
     MaxVectorAlign = 256;
     SizeType = UnsignedLong;
     IntPtrType = SignedLong;
-    DescriptionString = "e-m:o-p:32:32-f64:32:64-f80:128-n8:16:32-S128";
     HasAlignMac68kSupport = true;
   }
 
@@ -3567,15 +3595,19 @@ public:
 
 // x86-32 Windows target
 class WindowsX86_32TargetInfo : public WindowsTargetInfo<X86_32TargetInfo> {
+  // @LOCALMOD-START
+  void setDescriptionString() override {
+    if (getTriple().isOSWindows() && getTriple().isOSBinFormatCOFF())
+      DescriptionString = "e-m:x-p:32:32-i64:64-f80:32-n8:16:32-S32";
+    else
+      DescriptionString = "e-m:e-p:32:32-i64:64-f80:32-n8:16:32-S32";
+  }
+  // @LOCALMOD-END
 public:
   WindowsX86_32TargetInfo(const llvm::Triple &Triple)
       : WindowsTargetInfo<X86_32TargetInfo>(Triple) {
     WCharType = UnsignedShort;
     DoubleAlign = LongLongAlign = 64;
-    bool IsWinCOFF =
-        getTriple().isOSWindows() && getTriple().isOSBinFormatCOFF();
-    DescriptionString = IsWinCOFF ? "e-m:x-p:32:32-i64:64-f80:32-n8:16:32-S32"
-                                  : "e-m:e-p:32:32-i64:64-f80:32-n8:16:32-S32";
   }
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override {
@@ -3648,13 +3680,17 @@ public:
 
 // x86-32 Cygwin target
 class CygwinX86_32TargetInfo : public X86_32TargetInfo {
+  // @LOCALMOD-START
+  void setDescriptionString() override {
+    DescriptionString = "e-m:x-p:32:32-i64:64-f80:32-n8:16:32-S32";
+  }
+  // @LOCALMOD-END
 public:
   CygwinX86_32TargetInfo(const llvm::Triple &Triple)
       : X86_32TargetInfo(Triple) {
     TLSSupported = false;
     WCharType = UnsignedShort;
     DoubleAlign = LongLongAlign = 64;
-    DescriptionString = "e-m:x-p:32:32-i64:64-f80:32-n8:16:32-S32";
   }
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override {

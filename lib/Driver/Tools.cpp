@@ -1712,6 +1712,13 @@ void Clang::AddX86TargetArgs(const ArgList &Args,
           << A->getOption().getName() << Value;
     }
   }
+
+  // @LOCALMOD-START
+  if (Args.getLastArg(options::OPT_malign_double)) {
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-malign-double");
+  }
+  // @LOCALMOD-END
 }
 
 static inline bool HasPICArg(const ArgList &Args) {
